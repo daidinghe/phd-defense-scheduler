@@ -70,23 +70,40 @@ async function loadData(){
 
   const people=data.responses||[];
   const total=people.length;
-  const counts={};
-  for(const p of people){
-    for(const slot of p.slots||[]) counts[slot]=(counts[slot]||0)+1;
+  const allDates=[];
+  const startDate=new Date('2026-12-01T12:00:00');
+  const endDate=new Date('2027-01-31T12:00:00');
+  const ex1=new Date('2026-12-21T00:00:00');
+  const ex2=new Date('2027-01-03T23:59:59');
+
+  for(let d=new Date(startDate); d<=endDate; d.setDate(d.getDate()+1)){
+    const day=d.getDay();
+    if(day===0 || day===6) continue;
+    if(d>=ex1 && d<=ex2) continue;
+    allDates.push(d.toISOString().slice(0,10));
   }
 
-  const keys=Object.keys(counts).sort();
   let html=`<p><strong>${total}</strong> participant(s) submitted.</p>`;
-  html+='<table><thead><tr><th>Date</th><th>Morning</th><th>Afternoon</th></tr></thead><tbody>';
+  html+='<table><thead><tr><th>Date</th><th>Time</th><th>Available</th><th>Names</th></tr></thead><tbody>';
 
-  const dates=[...new Set(keys.map(k=>k.split('|')[0]))];
-  for(const d of dates){
-    const m=counts[d+'|Morning']||0;
-    const a=counts[d+'|Afternoon']||0;
-    const cm = total>0 && m===total ? 'best' : (m>0?'good':'');
-    const ca = total>0 && a===total ? 'best' : (a>0?'good':'');
-    html+=`<tr><td>${fmt(d)}</td><td class="${cm}">${m}/${total}</td><td class="${ca}">${a}/${total}</td></tr>`;
+  for(const d of allDates){
+    for(const period of ['Morning','Afternoon']){
+      const names=[];
+      for(const p of people){
+        if((p.slots||[]).includes(d+'|'+period)) names.push(escapeHtml(p.name));
+      }
+      const count=names.length;
+      const cls = total>0 && count===total ? 'best' : (count>0 ? 'good' : '');
+
+      html+=`<tr class="${cls}">
+        <td>${fmt(d)}</td>
+        <td><strong>${period}</strong></td>
+        <td>${count}/${total}</td>
+        <td style="text-align:left">${names.length ? names.join(', ') : '<span class="muted">—</span>'}</td>
+      </tr>`;
+    }
   }
+
   html+='</tbody></table>';
   s.innerHTML=html;
 

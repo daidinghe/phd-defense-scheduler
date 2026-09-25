@@ -181,33 +181,47 @@ async function loadPublicResponses(){
       return;
     }
 
-    let html='';
-    for(const p of people){
-      const grouped={};
-      for(const slot of (p.slots||[])){
-        const [date,period]=slot.split('|');
-        if(!grouped[date]) grouped[date]=[];
-        grouped[date].push(period);
+    const allDates=[];
+    const startDate=new Date('2026-12-01T12:00:00');
+    const endDate=new Date('2027-01-31T12:00:00');
+    const ex1=new Date('2026-12-21T00:00:00');
+    const ex2=new Date('2027-01-03T23:59:59');
+
+    for(let d=new Date(startDate); d<=endDate; d.setDate(d.getDate()+1)){
+      const day=d.getDay();
+      if(day===0 || day===6) continue;
+      if(d>=ex1 && d<=ex2) continue;
+      allDates.push(dateKey(d));
+    }
+
+    let html='<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Time</th><th>Available committee members</th></tr></thead><tbody>';
+
+    for(const d of allDates){
+      const morning=[];
+      const afternoon=[];
+
+      for(const p of people){
+        const slots=new Set(p.slots||[]);
+        if(slots.has(d+'|Morning')) morning.push(escapeHtml(p.name));
+        if(slots.has(d+'|Afternoon')) afternoon.push(escapeHtml(p.name));
       }
 
-      const dates=Object.keys(grouped).sort();
-      html+=`<div class="response-card"><h3>${escapeHtml(p.name)}</h3>`;
-      if(!dates.length){
-        html+='<p class="muted">No availability selected.</p>';
-      }else{
-        html+='<ul class="response-list">';
-        for(const d of dates){
-          html+=`<li><strong>${formatDate(new Date(d+'T12:00:00'))}</strong>: ${grouped[d].map(escapeHtml).join(' / ')}</li>`;
-        }
-        html+='</ul>';
-      }
-      html+='</div>';
+      html+=`<tr>
+        <td rowspan="2"><strong>${formatDate(new Date(d+'T12:00:00'))}</strong></td>
+        <td><strong>Morning</strong></td>
+        <td style="text-align:left">${morning.length ? morning.join(', ') : '<span class="muted">—</span>'}</td>
+      </tr>`;
+      html+=`<tr>
+        <td><strong>Afternoon</strong></td>
+        <td style="text-align:left">${afternoon.length ? afternoon.join(', ') : '<span class="muted">—</span>'}</td>
+      </tr>`;
     }
+
+    html+='</tbody></table></div>';
     box.innerHTML=html;
   }catch(e){
     box.innerHTML='<div class="error" style="display:block">'+escapeHtml(e.message)+'</div>';
   }
-}
 }
 
 buildDates();
