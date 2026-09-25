@@ -20,7 +20,13 @@ th:first-child,td:first-child{text-align:left}
 .muted{color:var(--muted)}
 details{margin-top:20px}
 pre{white-space:pre-wrap;background:#f7f8fa;padding:14px;border-radius:10px}
+
+.person-card{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:12px 0}
+.person-card h3{margin:0 0 8px;font-size:17px}
+.person-card ul{margin:0;padding-left:18px}
+.person-card li{margin:4px 0}
 </style>
+
 </head>
 <body>
 <div class="wrap">
@@ -49,7 +55,17 @@ async function loadData(){
   if(API_URL.includes('PASTE_YOUR')){ s.innerHTML='<p>Please connect this page to the Apps Script backend first.</p>'; return; }
 
   const r=await fetch(API_URL+'?action=list');
-  const data=await r.json();
+  const raw=await r.text();
+  let data;
+  try{
+    data=JSON.parse(raw);
+  }catch(_){
+    const looksHtml=/^\s*</.test(raw);
+    s.innerHTML='<p>Could not load data. '+(looksHtml
+      ? 'The Apps Script URL returned an HTML/Google page instead of JSON. Check that the Web App is deployed for <strong>Anyone</strong> and that this page uses the current deployment URL.'
+      : 'The server returned an invalid response.')+'</p>';
+    return;
+  }
   if(!data.ok){ s.innerHTML='<p>Could not load data.</p>'; return; }
 
   const people=data.responses||[];
@@ -74,7 +90,7 @@ async function loadData(){
   html+='</tbody></table>';
   s.innerHTML=html;
 
-  let det='<table><thead><tr><th>Name</th><th>Selected availability</th></tr></thead><tbody>';
+  let det='';
   for(const p of people){
     const grouped={};
     for(const slot of (p.slots||[])){
@@ -86,15 +102,14 @@ async function loadData(){
     }
 
     const lines=Object.keys(grouped).sort().map(d=>{
-      return `<strong>${fmt(d)}</strong>: ${grouped[d].map(escapeHtml).join(' / ')}`;
+      return `<li><strong>${fmt(d)}</strong>: ${grouped[d].map(escapeHtml).join(' / ')}</li>`;
     });
 
-    det+=`<tr>
-      <td style="vertical-align:top"><strong>${escapeHtml(p.name)}</strong></td>
-      <td style="text-align:left">${lines.length ? lines.join('<br>') : '<span class="muted">No availability selected</span>'}</td>
-    </tr>`;
+    det+=`<div class="person-card">
+      <h3>${escapeHtml(p.name)}</h3>
+      ${lines.length ? '<ul>'+lines.join('')+'</ul>' : '<p class="muted">No availability selected</p>'}
+    </div>`;
   }
-  det+='</tbody></table>';
   document.getElementById('details').innerHTML=det;
 }
 function escapeHtml(x){

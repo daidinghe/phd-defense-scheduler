@@ -32,7 +32,13 @@ button{border:0;border-radius:10px;padding:12px 18px;font-size:15px;cursor:point
 .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:22px}
 .small{font-size:13px}
 @media(max-width:650px){th,td{padding:9px 6px;font-size:14px}.card{padding:18px}h1{font-size:26px}}
+
+.response-card{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:12px 0;background:#fff}
+.response-card h3{margin:0 0 8px;font-size:17px}
+.response-list{margin:0;padding-left:18px}
+.response-list li{margin:4px 0}
 </style>
+
 </head>
 <body>
 <div class="wrap">
@@ -153,7 +159,20 @@ async function loadPublicResponses(){
   const box=document.getElementById('publicResponses');
   try{
     const r=await fetch(API_URL+'?action=list');
-    const data=await r.json();
+    const raw=await r.text();
+
+    let data;
+    try{
+      data=JSON.parse(raw);
+    }catch(_){
+      const looksHtml=/^\s*</.test(raw);
+      throw new Error(
+        looksHtml
+          ? 'The response server returned a Google/HTML page instead of data. Please check that the Apps Script Web App is deployed with access set to "Anyone" and that the current deployment URL is used.'
+          : 'The response server returned an invalid response.'
+      );
+    }
+
     if(!data.ok) throw new Error(data.error||'Could not load responses');
 
     const people=data.responses||[];
@@ -162,43 +181,33 @@ async function loadPublicResponses(){
       return;
     }
 
-    const allDates=[];
-    const start=new Date('2026-12-01T12:00:00');
-    const end=new Date('2027-01-31T12:00:00');
-    const ex1=new Date('2026-12-21T00:00:00');
-    const ex2=new Date('2027-01-03T23:59:59');
-
-    for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
-      const day=d.getDay();
-      if(day===0 || day===6) continue;
-      if(d>=ex1 && d<=ex2) continue;
-      allDates.push(dateKey(d));
-    }
-
-    let html='<div style="overflow-x:auto"><table><thead><tr><th>Date</th>';
+    let html='';
     for(const p of people){
-      html+=`<th colspan="2">${escapeHtml(p.name)}</th>`;
-    }
-    html+='</tr><tr><th></th>';
-    for(const p of people){
-      html+='<th>Morning</th><th>Afternoon</th>';
-    }
-    html+='</tr></thead><tbody>';
-
-    for(const d of allDates){
-      html+=`<tr><td>${formatDate(new Date(d+'T12:00:00'))}</td>`;
-      for(const p of people){
-        const slots=new Set(p.slots||[]);
-        html+=`<td>${slots.has(d+'|Morning')?'✓':'—'}</td>`;
-        html+=`<td>${slots.has(d+'|Afternoon')?'✓':'—'}</td>`;
+      const grouped={};
+      for(const slot of (p.slots||[])){
+        const [date,period]=slot.split('|');
+        if(!grouped[date]) grouped[date]=[];
+        grouped[date].push(period);
       }
-      html+='</tr>';
+
+      const dates=Object.keys(grouped).sort();
+      html+=`<div class="response-card"><h3>${escapeHtml(p.name)}</h3>`;
+      if(!dates.length){
+        html+='<p class="muted">No availability selected.</p>';
+      }else{
+        html+='<ul class="response-list">';
+        for(const d of dates){
+          html+=`<li><strong>${formatDate(new Date(d+'T12:00:00'))}</strong>: ${grouped[d].map(escapeHtml).join(' / ')}</li>`;
+        }
+        html+='</ul>';
+      }
+      html+='</div>';
     }
-    html+='</tbody></table></div>';
     box.innerHTML=html;
   }catch(e){
-    box.innerHTML='<p class="error" style="display:block">Could not load current responses: '+escapeHtml(e.message)+'</p>';
+    box.innerHTML='<div class="error" style="display:block">'+escapeHtml(e.message)+'</div>';
   }
+}
 }
 
 buildDates();
